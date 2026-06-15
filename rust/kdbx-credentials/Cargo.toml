@@ -1,0 +1,20 @@
+[package]
+name = "kdbx-credentials"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Read-only retrieval of credentials from a KeePass (KDBX4) database, with the master password held in the OS-native secret store."
+authors = ["Matt H"]
+license = "MIT"
+repository = "https://github.com/lawless-m/keepass-access-libs"
+readme = "README.md"
+keywords = ["keepass", "kdbx", "credentials", "secret-service", "keyring"]
+categories = ["authentication", "cryptography"]
+# Only the source and the test fixture are needed by consumers.
+include = ["src/**/*.rs", "tests/**/*", "README.md", "CHANGELOG.md", "LICENSE"]
+
+[dependencies]
+keepass-ng = "0.10.5"
+keyring = { version = "3", default-features = false, features = ["windows-native", "sync-secret-service", "crypto-rust", "vendored"] }
+thiserror = "2.0.18"
+zeroize = { version = "1.9.0", features = ["derive"] }
