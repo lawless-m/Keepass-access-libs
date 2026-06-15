@@ -1,6 +1,6 @@
 # KeePass Credential Retrieval — Security Contract
 
-Version: 1.0  
+Version: 1.1  
 Status: Draft
 
 ## What This Library Guarantees
@@ -72,6 +72,13 @@ The one-time setup step that deposits the master password into the OS secret sto
 - When the master password is rotated, all machines must be updated before the new database is deployed
 - Access to the OS secret store entry should be scoped to the service account running the scheduled tasks, not the entire machine
 
+On Linux, provisioning uses systemd credentials:
+
+- Encrypt the password with `systemd-creds encrypt` (host key, or `--with-key=tpm2` where a TPM is present), which binds the encrypted credential to that machine — it cannot be decrypted elsewhere
+- Grant it to the unit with `LoadCredentialEncrypted=`; systemd decrypts it into `$CREDENTIALS_DIRECTORY` on a non-swapped tmpfs readable only by the service user
+- The encrypted credential file is safe to store on disk (e.g. `/etc/credstore.encrypted/`); it is useless without the machine's host key or TPM
+- Store the password with no trailing newline — it is read verbatim
+
 ---
 
 ## Rotation Procedure
@@ -79,7 +86,7 @@ The one-time setup step that deposits the master password into the OS secret sto
 When the KeePass master password is changed:
 
 1. Change the password in KeePassXC and save the database
-2. Update the OS secret store entry on each approved machine
+2. Update the OS secret store entry on each approved machine (on Linux, re-run `systemd-creds encrypt` and replace the credential file on each machine)
 3. Verify each machine can open the database before deploying the updated `.kdbx`
 
 Failure to update all machines before deploying the new database will result in `AuthenticationFailed` errors on unupdated machines.
@@ -91,3 +98,4 @@ Failure to update all machines before deploying the new database will result in 
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-06-15 | Initial draft |
+| 1.1 | 2026-06-15 | Linux provisioning/rotation updated for systemd credentials (`systemd-creds` + `LoadCredentialEncrypted=`) |

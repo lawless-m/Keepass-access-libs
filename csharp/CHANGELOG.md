@@ -15,6 +15,20 @@ adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   returning `Username`, `Password`, `Url`, and `Notes`.
 - `KdbxException` hierarchy with eight distinct exception types.
 - `ISecretStore` with Windows (Credential Manager via `CredRead`) and Linux
-  (Secret Service via `secret-tool`) implementations.
+  (systemd credentials) implementations.
 - Redacting `Entry.ToString()`; `Entry`/`Database` implement `IDisposable`.
 - xUnit unit and integration tests against a committed KDBX4 fixture.
+
+### Changed
+
+- The Linux secret store now reads the master password from systemd credentials
+  (`$CREDENTIALS_DIRECTORY/<secretStoreKey>`, verbatim) instead of the Secret
+  Service `secret-tool`. The key is validated as a single safe path component,
+  and `secretStoreKey` must be a valid systemd credential ID (no `/`).
+- Replaced the KDBX dependency with `pt.KeePassLibStd` (a .NET Standard 2.0 port
+  of `KeePassLib` that runs on `net9.0` cross-platform). The original
+  `KeePassLib 2.55.0` did not exist on NuGet, and `2.30.0` targets .NET Framework
+  and throws `TypeLoadException` (`System.Security.Cryptography.ProtectedMemory`)
+  at runtime on `net9.0`. All 30 tests now pass on Linux.
+- Added the `kdbx-lookup` example and `tests/systemd_creds_integration.sh`,
+  verifying the real `systemd-creds` + `systemd-run` credential flow end-to-end.

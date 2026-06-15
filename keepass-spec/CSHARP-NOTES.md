@@ -16,9 +16,9 @@ Check NuGet for availability before settling on a name.
 
 | Package | Purpose |
 |---------|---------|
-| `KeePassLib` | Official KeePass library extracted from the KeePass source. Handles KDBX3 and KDBX4 parsing. Available on NuGet |
-| `Microsoft.Windows.SDK.Contracts` (Windows only) | Access to Windows Credential Manager via `Windows.Security.Credentials.PasswordVault` |
-| `SecretService` or direct D-Bus | Linux Secret Service access. Options: `SecretService` NuGet package, or direct D-Bus via `Tmds.DBus` |
+| `pt.KeePassLibStd` | .NET Standard 2.0 port of the official `KeePassLib`, keeping the same API (`PwDatabase` / `CompositeKey` / `KcpPassword`) but running cross-platform on `net9.0`. The official `KeePassLib` NuGet package is .NET Framework only and throws `TypeLoadException` at runtime on modern .NET |
+| Win32 `CredRead` (Windows only) | Access to Windows Credential Manager as a generic credential via `advapi32.dll` P/Invoke. Works in any standard .NET process, unlike the WinRT `PasswordVault` |
+| (none) | Linux uses systemd credentials — the master password is read from the `$CREDENTIALS_DIRECTORY/<secretStoreKey>` file, so no library is required |
 
 ## Platform Handling
 
@@ -26,9 +26,9 @@ Use `RuntimeInformation.IsOSPlatform()` to branch at runtime:
 
 ```csharp
 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-    // use PasswordVault
+    // read the Windows Credential Manager (CredRead)
 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-    // use Secret Service
+    // read $CREDENTIALS_DIRECTORY/<secretStoreKey> (systemd credentials)
 else
     throw new PlatformNotSupportedException("Only Windows and Linux are supported");
 ```
@@ -99,20 +99,17 @@ Walk the `KeePassLib` group tree using the path segments, then find the entry by
 
 ## Windows — Credential Manager
 
-```csharp
-var vault = new Windows.Security.Credentials.PasswordVault();
-var credential = vault.Retrieve(secretStoreKey, Environment.MachineName);
-credential.RetrievePassword();
-return credential.Password;
-```
+Read a generic credential with the Win32 `CredRead` API (`advapi32.dll`), looking it up by `TargetName == secretStoreKey`. This works in any standard .NET process (console app or Windows Service), unlike the WinRT `PasswordVault`, which requires an app-container/package identity. The credential blob is UTF-16; decode it and clear the intermediate byte buffer.
 
-The `Resource` field maps to `secretStoreKey`. Use `Environment.MachineName` as the `UserName` field, or a fixed string — document the convention so the provisioning script matches.
+Provision with, for example: `cmdkey /generic:"kdbx-master" /user:"kdbx-credentials" /pass`.
 
-## Linux — Secret Service
+## Linux — systemd credentials
 
-The Secret Service API is accessed over D-Bus. Use the `SecretService` NuGet package or equivalent. Look up the secret by the `label` or attribute matching `secretStoreKey`.
+There is no lookup-by-key API. systemd decrypts the credential and exposes it to the service as a file under `$CREDENTIALS_DIRECTORY`, named by the credential ID. Read `$CREDENTIALS_DIRECTORY/<secretStoreKey>` and return it verbatim (do not trim — provision with no trailing newline). Validate `secretStoreKey` as a single safe path component (no `/`, `\`, NUL; not `.`/`..`) so it cannot escape the directory.
 
-Note: on headless Linux machines a Secret Service daemon must be running (e.g. `gnome-keyring-daemon`). Document this as a prerequisite.
+- No `$CREDENTIALS_DIRECTORY` → `PermissionDeniedException` (the process is not running under a systemd unit that loaded credentials).
+- Credential file missing → `SecretNotFoundException`.
+- The credential is granted to the unit via `LoadCredentialEncrypted=` (or `LoadCredential=` / `SetCredential=`), so the process must run as a systemd service. Encrypt the password once with `systemd-creds encrypt`.
 
 ## Publishing Checklist
 
@@ -120,13 +117,13 @@ Note: on headless Linux machines a Secret Service daemon must be running (e.g. `
 - [ ] NuGet metadata in `.csproj` (authors, description, license, repository URL)
 - [ ] XML doc comments on all public members
 - [ ] Unit tests with a test `.kdbx` file (not a real database)
-- [ ] Integration tests for Windows and Linux secret store (may need to be skipped in CI if no secret store is available)
+- [ ] Integration tests for Windows and Linux secret store (the Linux systemd flow can be tested with `systemd-creds` + `systemd-run`; may need to be skipped in CI without systemd)
 - [ ] `CHANGELOG.md`
 - [ ] Strong name signing (optional but conventional for NuGet packages)
 - [ ] Check NuGet name availability before first publish
 
 ## Notes
 
-- `KeePassLib` from NuGet may lag behind the official KeePass source. Verify it supports KDBX4 before committing to it. An alternative is `KeePass2.x` or a direct port of the relevant parsing code
-- The `PasswordVault` API on Windows requires the calling process to be a UWP app or to use the `Windows.Security.Credentials` WinRT API via interop — verify this works in a standard .NET 8 console application / Windows Service context before committing to it. The older `System.Security.Credentials` or direct DPAPI via `System.Security.Cryptography.ProtectedData` may be needed as a fallback
+- The official `KeePassLib` NuGet package (2.30.0) targets .NET Framework and throws `TypeLoadException` (removed `System.Security.Cryptography.ProtectedMemory`) at runtime on modern .NET. Use `pt.KeePassLibStd`, a .NET Standard 2.0 port with the same API, instead
+- The `PasswordVault` WinRT API requires an app-container/package identity and is unreliable in a plain console app or Windows Service. Use the Win32 `CredRead` P/Invoke instead, as described above
 - Consider providing a `KdbxCredentialsBuilder` or options object for `Open()` if configuration needs grow in future

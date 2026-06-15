@@ -27,7 +27,7 @@ Neither implementation references or depends on the other. The specification is 
 ## Scope
 
 Both libraries:
-- Retrieve a master password from the OS secret store (Windows Credential Manager / Linux Secret Service)
+- Retrieve a master password from the OS secret store (Windows Credential Manager / Linux systemd credentials)
 - Open a KDBX4 database file
 - Look up entries by group path and title
 - Return Username, Password, URL, Notes

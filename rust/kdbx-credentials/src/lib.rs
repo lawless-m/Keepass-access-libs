@@ -1,9 +1,9 @@
 //! Read-only retrieval of credentials from a KeePass (KDBX4) database.
 //!
 //! `kdbx-credentials` opens a KDBX 4.x database using a master password held in
-//! the OS-native secret store (Windows Credential Manager / Linux Secret
-//! Service) and looks up entries by a `/`-separated `group/title` path. It is
-//! one of two implementations of a shared specification; the other is a C#
+//! the OS-native secret store (Windows Credential Manager / Linux systemd
+//! credentials) and looks up entries by a `/`-separated `group/title` path. It
+//! is one of two implementations of a shared specification; the other is a C#
 //! package. Neither depends on the other.
 //!
 //! # Example
@@ -11,7 +11,7 @@
 //! ```no_run
 //! use std::path::Path;
 //!
-//! let db = kdbx_credentials::open(Path::new("/srv/secrets/team.kdbx"), "acme/keepass")?;
+//! let db = kdbx_credentials::open(Path::new("/srv/secrets/team.kdbx"), "kdbx-master")?;
 //! let entry = kdbx_credentials::lookup(&db, "ndb/postgres-prod")?;
 //! if let Some(password) = &entry.password {
 //!     // use the password — it is zeroed when `entry` is dropped

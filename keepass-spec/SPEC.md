@@ -1,6 +1,6 @@
 # KeePass Credential Retrieval — Specification
 
-Version: 1.0  
+Version: 1.1  
 Status: Draft
 
 ## Overview
@@ -37,12 +37,13 @@ Lookup key: configurable, see Configuration
 
 ### Linux
 
-Store: Secret Service API (libsecret / GNOME Keyring)  
-Lookup key: configurable, see Configuration
+Store: systemd credentials  
+Mechanism: there is no lookup-by-key API. systemd decrypts the credential and exposes it to the service as a file under `$CREDENTIALS_DIRECTORY`, named by the credential ID. The library reads `$CREDENTIALS_DIRECTORY/<secret_store_key>` verbatim.  
+Lookup key: the credential ID, see Configuration
 
 ### Provisioning
 
-The master password must be deposited into the OS secret store by an administrator as a one-time setup step on each approved machine. This is outside the scope of the library itself.
+The master password must be deposited into the OS secret store by an administrator as a one-time setup step on each approved machine. This is outside the scope of the library itself. On Linux this means encrypting the password with `systemd-creds` and granting it to the unit via `LoadCredentialEncrypted=`; on Windows, storing a generic credential. Because the credential is read verbatim on Linux, it must be stored with no trailing newline.
 
 ---
 
@@ -55,7 +56,7 @@ The library is configured via the following parameters. How these are supplied (
 | `db_path` | string | Absolute path to the `.kdbx` file |
 | `secret_store_key` | string | The key name used to look up the master password in the OS secret store |
 
-The `secret_store_key` SHOULD follow the convention `organisation/application` (e.g. `acme/keepass`) to avoid collisions with other credentials on the machine. The exact value is agreed upon by the team and must be consistent across all machines.
+The `secret_store_key` MUST be a valid systemd credential ID on Linux: a single name (no `/`) made of alphanumerics plus `_`, `.`, `-` (e.g. `kdbx-master`). On Windows it is the Credential Manager target name. Choose a descriptive, collision-resistant value and keep it consistent across all machines.
 
 ---
 
@@ -194,3 +195,4 @@ See `ERRORS.md` for the full error taxonomy. Implementations must map all intern
 | Version | Date | Notes |
 |---------|------|-------|
 | 1.0 | 2026-06-15 | Initial draft |
+| 1.1 | 2026-06-15 | Linux secret store changed from the Secret Service API to systemd credentials; `secret_store_key` must be a valid systemd credential ID |

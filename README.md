@@ -7,7 +7,7 @@ Both implement the same behavioural specification; neither depends on the other.
 | Implementation | Location | Publishes to | Status |
 |----------------|----------|--------------|--------|
 | Rust crate `kdbx-credentials` | [`rust/kdbx-credentials/`](rust/kdbx-credentials/) | crates.io | Implemented and tested |
-| C# package `KdbxCredentials`  | [`csharp/`](csharp/) | NuGet | Implemented; build/test pending a .NET SDK environment |
+| C# package `KdbxCredentials`  | [`csharp/`](csharp/) | NuGet | Implemented and tested (net9.0) |
 
 ## The specification
 
@@ -21,7 +21,7 @@ The canonical spec lives in [`keepass-spec/`](keepass-spec/). **Start with
 
 ## What both libraries do
 
-- Retrieve the master password from Windows Credential Manager / Linux Secret Service
+- Retrieve the master password from Windows Credential Manager / Linux systemd credentials
 - Open a KDBX 4.x database (master password only — no key files)
 - Look up entries by case-insensitive `group/title` path
 - Return `Username`, `Password`, `URL`, `Notes`
@@ -33,9 +33,11 @@ and provisioning the OS secret store (documented, not automated).
 
 ## Provisioning convention
 
-Both implementations look the secret up under **service = `secret_store_key`**
-(e.g. `acme/keepass`) and **account = `kdbx-credentials`**. See each
-implementation's README for the platform-specific provisioning commands.
+The `secret_store_key` names the credential. On Linux it is a systemd credential
+ID, read from `$CREDENTIALS_DIRECTORY/<key>` (so it must be a single name with no
+`/`, e.g. `kdbx-master`). On Windows it is the Credential Manager *target*, with
+the fixed *account* `kdbx-credentials`. See each implementation's README for the
+platform-specific provisioning commands.
 
 ## Building
 

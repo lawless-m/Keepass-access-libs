@@ -2,8 +2,8 @@
 
 Read-only retrieval of credentials from a [KeePass](https://keepass.info/)
 KDBX 4.x database, with the master password held in the OS-native secret store
-(Windows Credential Manager / Linux Secret Service). The database file itself is
-never modified.
+(Windows Credential Manager / Linux systemd credentials). The database file
+itself is never modified.
 
 This is the C# implementation of a shared specification; a separate Rust crate
 (`kdbx-credentials`) implements the same behaviour. Neither depends on the other.
@@ -28,7 +28,7 @@ out of scope.
 ```csharp
 using KdbxCredentials;
 
-using var db = Database.Open("/srv/secrets/team.kdbx", "acme/keepass");
+using var db = Database.Open("/srv/secrets/team.kdbx", "kdbx-master");
 using Entry entry = db.Lookup("ndb/postgres-prod");
 
 if (entry.Password is not null)
@@ -58,26 +58,32 @@ credential material.
 
 ## Provisioning the secret store
 
-The master password must be deposited into the OS secret store once per machine,
-by an administrator. The library reads it using:
+The `secretStoreKey` you pass to `Open` names the credential. On Linux it must be
+a valid systemd credential ID: a single name with no `/` (e.g. `kdbx-master`).
 
-- **service / target** = the `secretStoreKey` you pass to `Open` (e.g. `acme/keepass`)
-- **account** = the fixed string `kdbx-credentials`
+**Linux** — systemd credentials. There is no lookup-by-key API: systemd decrypts
+the credential and hands it to your service as a file under
+`$CREDENTIALS_DIRECTORY`. The library reads `$CREDENTIALS_DIRECTORY/<key>`
+verbatim, so **store the password with no trailing newline**.
 
-**Linux** (libsecret's `secret-tool`, which must be installed and on `PATH`):
+Encrypt the master password to the machine once, as an administrator, then grant
+it to the unit that runs your task:
 
 ```sh
-secret-tool store --label='acme/keepass' service 'acme/keepass' account 'kdbx-credentials'
-# then type the master password when prompted
+printf '%s' 'your-master-password' \
+    | sudo systemd-creds encrypt --name=kdbx-master - /etc/credstore.encrypted/kdbx-master
 ```
 
-A Secret Service daemon must be running (for example
-`gnome-keyring-daemon --daemonize` on headless machines).
+```ini
+[Service]
+LoadCredentialEncrypted=kdbx-master
+```
 
-**Windows** (built-in Credential Manager):
+**Windows** (built-in Credential Manager). The key is the *target*; the *account*
+is the fixed string `kdbx-credentials`:
 
 ```powershell
-cmdkey /generic:"acme/keepass" /user:"kdbx-credentials" /pass
+cmdkey /generic:"kdbx-master" /user:"kdbx-credentials" /pass
 ```
 
 > Provision interactively. Do not bake the master password into an automated
@@ -96,17 +102,20 @@ Rust implementation's guarantee. This is a documented limitation; see
 ## Development
 
 ```sh
-dotnet test          # unit + integration tests against data/test.kdbx
+dotnet test          # unit + integration tests against data/test.kdbx (30 pass)
 dotnet build -c Release
+
+# Real end-to-end test of the systemd-credentials path (needs systemd + sudo):
+tests/systemd_creds_integration.sh
 ```
 
 The committed fixture `tests/KdbxCredentials.Tests/data/test.kdbx` is a
 throwaway database with master password `test`; it contains no real credentials.
 
-> Note: the `KeePassLib` NuGet package version in the `.csproj` should be
-> verified against what is published, and the secret-store implementations
-> (Win32 `CredRead` / `secret-tool`) should be exercised on each platform before
-> the first release.
+KDBX parsing uses **`pt.KeePassLibStd`**, a .NET Standard 2.0 port of the
+official `KeePassLib` that keeps the same API but runs on `net9.0` cross-platform.
+(The official `KeePassLib` NuGet package is .NET Framework only and throws
+`TypeLoadException` at runtime on modern .NET.)
 
 ## License
 

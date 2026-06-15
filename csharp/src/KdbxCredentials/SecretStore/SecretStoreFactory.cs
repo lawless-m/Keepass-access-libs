@@ -8,13 +8,6 @@ namespace KdbxCredentials.SecretStore;
 /// </summary>
 internal static class SecretStoreFactory
 {
-    /// <summary>
-    /// The secret-store account under which the master password is stored.
-    /// Mirrors the convention used by the Rust implementation: the configured
-    /// <c>secretStoreKey</c> is the service/target, and this is the account.
-    /// </summary>
-    internal const string Account = "kdbx-credentials";
-
     /// <summary>Create the secret store for the current platform.</summary>
     /// <exception cref="PlatformNotSupportedException">
     /// The current OS is neither Windows nor Linux.

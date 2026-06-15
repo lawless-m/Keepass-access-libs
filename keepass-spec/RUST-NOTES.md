@@ -14,7 +14,7 @@ Check crates.io for availability before settling on a name.
 |-------|---------|
 | `keepass-ng` | KDBX4 parsing and entry lookup. Preferred over `keepass` for better KDBX4 support and active maintenance |
 | `zeroize` | Verified zeroing of credential memory. Derive `Zeroize` and `ZeroizeOnDrop` on the `Entry` struct |
-| `keyring` | Cross-platform OS secret store access (Windows Credential Manager + Linux Secret Service). Abstracts the platform difference cleanly |
+| `keyring` (Windows only) | Windows Credential Manager access. Make it a `[target.'cfg(windows)'.dependencies]` entry so the Linux build does not pull in the Secret Service/D-Bus stack. Linux uses systemd credentials, which needs no crate (read `$CREDENTIALS_DIRECTORY/<key>`) |
 | `thiserror` | Ergonomic error type derivation |
 
 ## Target Platforms
@@ -89,7 +89,10 @@ The `keepass-ng` `Group::get()` method takes a `&[&str]` slice of path segments.
 
 ## Secret Store
 
-Use the `keyring` crate. On Linux this talks to the Secret Service API over D-Bus. On headless Linux machines without a running Secret Service, consider whether `keyring` with a file-based fallback is acceptable, or document that a Secret Service daemon (e.g. `gnome-keyring-daemon --daemonize`) must be running.
+The mechanism is platform-specific (gate each behind `#[cfg(target_os = ...)]`):
+
+- **Linux**: systemd credentials. There is no lookup-by-key API — systemd decrypts the credential and exposes it as a file under `$CREDENTIALS_DIRECTORY`, named by the credential ID. Read `$CREDENTIALS_DIRECTORY/<secret_store_key>` verbatim (wrap in `Zeroizing`) and validate the key as a single safe path component. No `$CREDENTIALS_DIRECTORY` → `PermissionDenied`; missing file → `SecretNotFound`. No crate is needed.
+- **Windows**: the `keyring` crate against the Credential Manager.
 
 ## Publishing Checklist
 
