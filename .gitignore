@@ -1,0 +1,13 @@
+# Rust
+/rust/**/target/
+**/*.rs.bk
+
+# .NET
+[Bb]in/
+[Oo]bj/
+*.user
+.vs/
+
+# Editors
+.idea/
+*.swp
