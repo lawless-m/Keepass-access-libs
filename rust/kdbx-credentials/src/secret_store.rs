@@ -155,8 +155,13 @@ mod windows {
     pub(crate) fn get_master_password(
         secret_store_key: &str,
     ) -> Result<Zeroizing<String>, KdbxError> {
-        let entry =
-            Entry::new(secret_store_key, ACCOUNT).map_err(|e| map_error(secret_store_key, e))?;
+        // On Windows the *target name* is the sole lookup key, so address the
+        // credential by `secret_store_key` directly (matching the documented
+        // `cmdkey /generic:"<key>"` provisioning and the C# library). Plain
+        // `Entry::new` would instead derive the target name as
+        // `"<account>.<key>"`, which no provisioning step ever creates.
+        let entry = Entry::new_with_target(secret_store_key, secret_store_key, ACCOUNT)
+            .map_err(|e| map_error(secret_store_key, e))?;
         let password = entry
             .get_password()
             .map_err(|e| map_error(secret_store_key, e))?;

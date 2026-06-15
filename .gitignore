@@ -11,3 +11,6 @@
 # Editors
 .idea/
 *.swp
+
+# Conversation transcripts
+.devlog/
