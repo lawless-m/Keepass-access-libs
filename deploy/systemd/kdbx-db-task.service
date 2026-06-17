@@ -1,0 +1,26 @@
+# Example service that runs a KeePass-backed database task.
+#
+# systemd decrypts the master password and exposes it to this unit under
+# $CREDENTIALS_DIRECTORY; the wrapper script's `kdbx-getpass` reads it there.
+#
+# Provision the credential once (as root):
+#   printf '%s' 'master-password' \
+#     | systemd-creds encrypt --name=kdbx-master - /etc/credstore.encrypted/kdbx-master
+#
+# Install: copy this unit and kdbx-db-task.timer to /etc/systemd/system/, then
+#   systemctl daemon-reload && systemctl enable --now kdbx-db-task.timer
+
+[Unit]
+Description=KeePass-backed database task
+# The .kdbx lives on a network share, so make sure it is mounted first.
+RequiresMountsFor=/mnt/RIVSTS05_SOFTWARE
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=svc-dbtask
+# systemd searches /etc/credstore.encrypted for a file named after the credential
+# and exposes the decrypted value at $CREDENTIALS_DIRECTORY/kdbx-master.
+LoadCredentialEncrypted=kdbx-master
+ExecStart=/usr/local/bin/kdbx-db-task.sh

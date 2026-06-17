@@ -71,13 +71,17 @@ valid systemd credential ID on Linux: a single name with no `/`, made of
 alphanumerics plus `_`, `.`, `-` (e.g. `kdbx-master`). Keep it consistent across
 machines.
 
-**Linux** — systemd credentials. There is no lookup-by-key API: systemd decrypts
-the credential and hands it to your service as a file under
-`$CREDENTIALS_DIRECTORY`. The library reads `$CREDENTIALS_DIRECTORY/<key>`
-verbatim, so **store the password with no trailing newline**.
+**Linux** uses one of two stores depending on how the process is launched. If
+`$CREDENTIALS_DIRECTORY` is set (running under a systemd unit) the systemd
+credential is used; otherwise — a tool run by hand — the master password is read
+from a permission-protected file (`/etc/kdbx/<key>` by default). Both are read
+verbatim, so **store the password with no trailing newline**. Provision whichever
+matches how your task runs, or both with the same value.
 
-Encrypt the master password to the machine (host key, or TPM with
-`--with-key=tpm2`) once per machine, as an administrator:
+*systemd credentials* (for services and timers). There is no lookup-by-key API:
+systemd decrypts the credential and hands it to your service as a file under
+`$CREDENTIALS_DIRECTORY`. Encrypt the master password to the machine (host key,
+or TPM with `--with-key=tpm2`) once per machine, as an administrator:
 
 ```sh
 printf '%s' 'your-master-password' \
@@ -92,7 +96,21 @@ LoadCredentialEncrypted=kdbx-master
 # (systemd searches /etc/credstore.encrypted for a file named after the credential)
 ```
 
-For an ad-hoc run, `systemd-run` works the same way:
+*File store* (for tools run by hand on a headless box, where there is no login
+keyring). Write the master password to `/etc/kdbx/<key>`, owned by root and
+readable only by the account(s) that run the tools — e.g. a dedicated group:
+
+```sh
+sudo install -d -m 0750 /etc/kdbx
+printf '%s' 'your-master-password' \
+    | sudo install -m 0440 -g dbops /dev/stdin /etc/kdbx/kdbx-master
+```
+
+The directory can be overridden with `$KDBX_CREDENTIALS_DIR` (mainly for tests).
+This is plaintext at rest, protected only by file permissions — a deliberate
+trade-off for headless interactive use; prefer the systemd credential for
+unattended services. For an ad-hoc run under systemd instead, `systemd-run`
+works too:
 
 ```sh
 sudo systemd-run --pipe --wait \

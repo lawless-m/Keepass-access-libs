@@ -2,12 +2,14 @@
 //!
 //! The mechanism is platform-specific:
 //!
-//! - **Linux**: systemd credentials. The service is granted the master password
-//!   by systemd (via `LoadCredentialEncrypted=` / `LoadCredential=` /
-//!   `SetCredential=` on the unit), which decrypts it and exposes it as a file
-//!   under the directory named by `$CREDENTIALS_DIRECTORY`. The file name is the
-//!   credential ID, which is the configured `secret_store_key`. See the README
-//!   for the provisioning convention.
+//! - **Linux**: under a systemd unit, systemd credentials — the service is
+//!   granted the master password (via `LoadCredentialEncrypted=` /
+//!   `LoadCredential=` / `SetCredential=`), which systemd decrypts and exposes as
+//!   a file under `$CREDENTIALS_DIRECTORY`, named by the credential ID (the
+//!   configured `secret_store_key`). When not under systemd (a tool run by hand
+//!   on a headless box), the password is read from a permission-protected file
+//!   store instead (`/etc/kdbx/<key>` by default). Either way the file is read
+//!   verbatim. See the README for the provisioning conventions.
 //! - **Windows**: the Credential Manager, reached through the [`keyring`] crate.
 //!
 //! The master password is never stored in configuration, environment variables,
@@ -38,7 +40,7 @@ pub(crate) fn get_master_password(secret_store_key: &str) -> Result<Zeroizing<St
 #[cfg(target_os = "linux")]
 mod linux {
     use super::*;
-    use std::path::{Component, Path};
+    use std::path::{Component, Path, PathBuf};
 
     /// The environment variable systemd sets for a service that has been granted
     /// one or more credentials. It points at a directory (on a tmpfs that is not
@@ -46,15 +48,32 @@ mod linux {
     /// and readable only by the service user.
     const CREDENTIALS_DIR_ENV: &str = "CREDENTIALS_DIRECTORY";
 
+    /// Overrides the directory of the file-backed store (the fallback used when
+    /// not running under systemd). Primarily for tests; in production the default
+    /// is used.
+    const CRED_FILE_DIR_ENV: &str = "KDBX_CREDENTIALS_DIR";
+
+    /// Default directory for the file-backed store. One file per credential,
+    /// named by its `secret_store_key`, intended to be root-owned and readable
+    /// only by the account(s) that run the tools (e.g. mode 0440, a dedicated
+    /// group).
+    const DEFAULT_CRED_DIR: &str = "/etc/kdbx";
+
     pub(crate) fn get_master_password(
         secret_store_key: &str,
     ) -> Result<Zeroizing<String>, KdbxError> {
-        // Without $CREDENTIALS_DIRECTORY the process is not running under a
-        // systemd unit that loaded any credentials. The secret store mechanism
-        // itself is unavailable, which we model as a permission/access failure
-        // rather than "this particular secret is missing".
-        let dir = std::env::var_os(CREDENTIALS_DIR_ENV).ok_or(KdbxError::PermissionDenied)?;
-        read_from_dir(Path::new(&dir), secret_store_key)
+        // Under a systemd unit, systemd has loaded the credential into the
+        // directory named by $CREDENTIALS_DIRECTORY; read it from there.
+        if let Some(dir) = std::env::var_os(CREDENTIALS_DIR_ENV) {
+            return read_from_dir(Path::new(&dir), secret_store_key);
+        }
+
+        // Otherwise the process was not launched by systemd (e.g. a tool run by
+        // hand on a headless box). Read from the permission-protected file store.
+        let dir = std::env::var_os(CRED_FILE_DIR_ENV)
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(DEFAULT_CRED_DIR));
+        read_from_dir(&dir, secret_store_key)
     }
 
     /// Read the credential `key` from an already-resolved credentials directory.

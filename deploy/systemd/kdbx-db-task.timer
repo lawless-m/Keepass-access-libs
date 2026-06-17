@@ -1,0 +1,12 @@
+# Runs kdbx-db-task.service on a schedule (the systemd replacement for cron).
+# Adjust OnCalendar to taste; `systemd-analyze calendar hourly` validates it.
+
+[Unit]
+Description=Schedule the KeePass-backed database task
+
+[Timer]
+OnCalendar=hourly
+Persistent=true
+
+[Install]
+WantedBy=timers.target
