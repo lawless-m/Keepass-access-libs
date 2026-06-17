@@ -33,6 +33,10 @@ param(
     [string] $PasswordFile = 'C:\kdbx.txt',
     [string] $Key     = 'kdbx-master',
     [string] $Account = 'kdbx-credentials',
+    # The OS account whose vault is being provisioned, used in the log output.
+    # Defaults to the account actually running the script. Note: this is reported
+    # only; the credential always lands in the vault of whoever runs the process.
+    [string] $User    = "$env:USERDOMAIN\$env:USERNAME",
     [string] $LogFile
 )
 
@@ -45,7 +49,7 @@ function Log($msg) {
 }
 
 try {
-    Log "Provisioning '$Key' (account '$Account') as $env:USERDOMAIN\$env:USERNAME"
+    Log "Provisioning '$Key' (account '$Account') as $User"
 
     if (-not (Test-Path -LiteralPath $PasswordFile)) {
         throw "password file not found: $PasswordFile"
@@ -68,7 +72,7 @@ try {
     if (-not ((& cmdkey /list:$Key) -match [regex]::Escape($Key))) {
         throw "credential '$Key' not found after write"
     }
-    Log "PASS: credential '$Key' written to the vault of $env:USERNAME"
+    Log "PASS: credential '$Key' written to the vault of $User"
     $exit = 0
 }
 catch {
