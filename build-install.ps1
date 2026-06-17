@@ -11,13 +11,14 @@
 # `dotnet build`; this script installs only the Rust CLI.
 #
 # Usage:  .\build-install.ps1
-# Env:    BINDIR   install location (default $env:LOCALAPPDATA\Programs\kdbx)
+# Env:    BINDIR   install location (default $env:LOCALAPPDATA\Microsoft\WindowsApps,
+#                  which is on the default user PATH on Windows 10/11)
 
 $ErrorActionPreference = 'Stop'
 
 $RepoDir  = Split-Path -Parent $MyInvocation.MyCommand.Path
 $CrateDir = Join-Path $RepoDir 'rust\kdbx-credentials'
-$BinDir   = if ($env:BINDIR) { $env:BINDIR } else { Join-Path $env:LOCALAPPDATA 'Programs\kdbx' }
+$BinDir   = if ($env:BINDIR) { $env:BINDIR } else { Join-Path $env:LOCALAPPDATA 'Microsoft\WindowsApps' }
 
 if (-not (Get-Command cargo -ErrorAction SilentlyContinue)) {
     throw 'cargo not found - install the Rust toolchain (https://rustup.rs)'
@@ -39,5 +40,7 @@ Write-Host "==> Installing $Dest"
 Copy-Item -Force $Bin $Dest
 
 Write-Host "PASS: installed kdbx-getfield.exe to $BinDir"
-Write-Host 'Note: ensure that directory is on your PATH.'
+if (($env:Path -split ';') -notcontains $BinDir) {
+    Write-Host "Note: $BinDir is not on your PATH - add it, or set BINDIR to a dir that is."
+}
 Write-Host 'Next: provision the master password in Credential Manager (see README).'
