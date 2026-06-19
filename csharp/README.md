@@ -9,6 +9,10 @@ This is the C# implementation of a shared specification; a separate Rust crate
 (`kdbx-credentials`) implements the same behaviour. Neither depends on the other.
 See the `keepass-spec/` directory at the repository root for the canonical spec.
 
+> **Consuming this from another .NET service?** See [`USAGE.md`](USAGE.md) — the `kdbx-services`
+> key convention, a read example, and how to provision the secret into a `LocalSystem` service's
+> vault (the TinyWeb-CGI case).
+
 ## Features
 
 - Opens KDBX 4.0 / 4.1 databases (master password only — no key files).
